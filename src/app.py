@@ -46,10 +46,10 @@ num_dimensions = nyc_data[['latitude', 'longitude', 'price', 'minimum_nights', '
 # Visualize categorical dimensions
 fig, axis = plt.subplots(1,2, figsize=(12, 6))
 hist1 = sns.histplot(ax=axis[0], data=cat_dimensions, x='neighbourhood_group')
-for container in hist1.containers:  # Add labels to bars
+for container in hist1.containers: 
     hist1.bar_label(container, fontsize=10)
 hist2 = sns.histplot(ax=axis[1], data=cat_dimensions, x='room_type')
-for container in hist2.containers:  # Add labels to bars
+for container in hist2.containers: 
     hist2.bar_label(container, fontsize=10)
 
 
@@ -84,6 +84,37 @@ for i, col in enumerate(columns):
     sns.boxplot(x=num_dimensions[col], ax=ax_box)
     ax_box.set_title(f'Boxplot of {col}')
     ax_box.set_xlabel(col)
+
+
+# MULTIVARIATE ANALYSIS
+
+# Numerical vs numerical values
+
+features = ['latitude', 'longitude', 'minimum_nights', 'number_of_reviews', 
+            'reviews_per_month', 'calculated_host_listings_count', 'availability_365']
+fig, axes = plt.subplots(len(features), 2, figsize=(16, 28))
+
+for i, feature in enumerate(features):
+    sns.regplot(ax=axes[i, 0], data=nyc_data, x=feature, y='price')
+    axes[i, 0].set_title(f'{feature} vs Price')
+    axes[i, 0].set_xlabel(feature)
+    axes[i, 0].set_ylabel('Price')
+    sns.heatmap(ax=axes[i, 1], 
+                data=nyc_data[[feature, 'price']].corr(), 
+                annot=True, fmt='.2f', cbar=False, cmap='coolwarm')
+    axes[i, 1].set_title(f'Correlation: {feature} & Price')
+
+# Numerical vs categorical values
+cat_columns = ['neighbourhood_group', 'neighbourhood', 'room_type', 'last_review']
+for col in cat_columns:
+    nyc_data[col] = pd.factorize(nyc_data[col])[0]
+    
+fig, axis = plt.subplots(figsize = (10, 6))
+sns.heatmap(nyc_data[['latitude', 'longitude', 'minimum_nights', 'number_of_reviews', 'price',
+            'reviews_per_month', 'calculated_host_listings_count', 'availability_365', 'neighbourhood_group', 'neighbourhood', 'room_type', 'last_review']].corr(), annot = True, fmt = ".2f")
+
+plt.figure()
+sns.pairplot(data=nyc_data)
 
 plt.tight_layout()
 plt.show()
