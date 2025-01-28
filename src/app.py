@@ -32,11 +32,32 @@ if duplicates != 0:
 nulls = (nyc_data.isnull().sum().sort_values(ascending=False) / len(nyc_data)).apply(lambda x:"%.4f" % x)
 print(nulls)
 
-# REMOVE OUTLIERS 
-nyc_data.drop(nyc_data['minimum_nights'].idxmax(), inplace=True)
-
 # REMOVE IRRELEVANT DIMENSIONS
 nyc_data.drop(['id', 'name', 'host_id', 'host_name'], axis=1, inplace=True)
+
+# REMOVE OUTLIERS 
+cols = ['minimum_nights', 'number_of_reviews', 'reviews_per_month', 'calculated_host_listings_count', 'availability_365']
+for col in cols: 
+    q1, q3 = nyc_data[col].quantile([0.25, 0.75])
+    iqr = q3 - q1
+    
+    nyc_data = nyc_data[(nyc_data[col] >= (q1 - 1.5 * iqr)) & (nyc_data[col] <= (q3 + 1.5 * iqr))]
+
+print(nyc_data.info())
+
+"""
+# CUT COLUMNS IN BINS
+for col in cols:
+    nyc_data[f'binned_{col}'] = pd.cut(nyc_data[col], 10)
+    nyc_data[f'binned_{col}'] = nyc_data[f'binned_{col}'].apply(lambda x: x.mid)
+
+plt.figure(figsize=(12, 12))
+for i, col in enumerate(cols, start=1):
+    plt.subplot(3, 2, i)  # Define a 3x2 grid, with the plot at index i
+    sns.countplot(data=nyc_data, x=f'binned_{col}')
+    plt.title(f'Distribution of Binned {col}')
+    plt.xticks(rotation=45)
+"""
 
 # UNIVARIATE DATA ANALYSIS
 
@@ -116,5 +137,42 @@ sns.heatmap(nyc_data[['latitude', 'longitude', 'minimum_nights', 'number_of_revi
 plt.figure()
 sns.pairplot(data=nyc_data)
 
+
+# NORMALIZE NUMERICAL VALUES
+from sklearn.model_selection import train_test_split
+
+X = nyc_data.drop('price', axis=1)[cols]
+y = nyc_data['price']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=17)
+
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+scaler.fit(X_train)
+X_train_norm = scaler.transform(X_train)
+X_train_norm = pd.DataFrame(X_train_norm, index=X_train.index, columns=cols)
+
+X_test_norm = scaler.transform(X_test)
+X_test_norm = pd.DataFrame(X_test_norm, index=X_test.index, columns=cols)
+print(X_train_norm)
+
+fig, axes = plt.subplots(nrows=len(cols), ncols=1, figsize=(8, len(cols) * 4))
+
+for i, col in enumerate(X_train_norm.columns):
+    sns.histplot(X_train_norm[col], kde=True, ax=axes[i], bins=30)
+    axes[i].set_title(f'Histogram of Normalized {col}')
+    axes[i].set_xlabel(col)
+    axes[i].set_ylabel('Frequency')
+
 plt.tight_layout()
 plt.show()
+
+# FEATURE SELECTION
+from sklearn.feature_selection import f_classif, SelectKBest
+
+selection_model = SelectKBest(f_classif, k=5)
+selection_model.fit(X_train_norm, y_train)
+ix = selection_model.get_support()
+X_train_sel = pd.DataFrame(selection_model.transform(X_train), columns = X_train.columns.values[ix])
+X_test_sel = pd.DataFrame(selection_model.transform(X_test), columns = X_test.columns.values[ix])
+print(X_train_sel.head())
